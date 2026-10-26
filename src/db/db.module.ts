@@ -14,7 +14,12 @@ export type Db = PgDatabase<any, typeof schema>;
     {
       provide: DB,
       inject: [CONFIG],
-      useFactory: (config: AppConfig): Db => drizzle(new Pool({ connectionString: config.databaseUrl, max: 5 }), { schema }),
+      useFactory: (config: AppConfig): Db => {
+        // Neon closes idle connections; without this handler an idle-client error would crash the process.
+        const pool = new Pool({ connectionString: config.databaseUrl, max: 5, idleTimeoutMillis: 10_000, connectionTimeoutMillis: 10_000 });
+        pool.on('error', (e) => console.error('Postgres pool error:', e.message));
+        return drizzle(pool, { schema });
+      },
     },
   ],
   exports: [DB],
