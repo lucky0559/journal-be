@@ -24,6 +24,10 @@ npm test          # Jest; runs the real migrations on in-process Postgres (PGlit
 npm run typecheck
 ```
 
+## Contract check against the mobile client
+
+`npm run test:contract` runs the real mobile API code (`../journ-al/mobile/src/api`, `src/social`) against this backend with an in-process database: sign-in, friend requests, publishing with photo/voice upload, feeds, reactions, privacy rules, unpublish, re-share and account deletion. It needs the `journ-al` repo checked out next to this one.
+
 ## Change the schema
 
 Edit `src/db/schema.ts`, then `npm run db:generate` (creates a SQL file in `drizzle/`), commit it, and run `npm run db:migrate` against Neon.
