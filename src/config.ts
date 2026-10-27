@@ -5,7 +5,7 @@ export interface AppConfig {
   databaseUrl: string;
   jwtSecret: string;
   googleClientId: string;
-  media: { bucket: string; endpoint: string; accessKeyId: string; secretAccessKey: string; region: string };
+  media: { cloudName: string; apiKey: string; apiSecret: string };
 }
 
 export const CONFIG = Symbol('CONFIG');
@@ -15,11 +15,7 @@ const Env = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL (Neon connection string) is required'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
   GOOGLE_WEB_CLIENT_ID: z.string().min(1, 'GOOGLE_WEB_CLIENT_ID is required (same Web client ID the app uses)'),
-  R2_BUCKET: z.string().min(1),
-  R2_ENDPOINT: z.string().url(),
-  R2_ACCESS_KEY_ID: z.string().min(1),
-  R2_SECRET_ACCESS_KEY: z.string().min(1),
-  R2_REGION: z.string().default('auto'),
+  CLOUDINARY_URL: z.string().regex(/^cloudinary:\/\/[^:@\/]+:[^:@\/]+@[^:@\/]+$/, 'CLOUDINARY_URL must look like cloudinary://API_KEY:API_SECRET@CLOUD_NAME (copy it from the Cloudinary dashboard)'),
 });
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -29,11 +25,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Invalid environment:\n${lines}`);
   }
   const e = parsed.data;
+  const cloud = new URL(e.CLOUDINARY_URL);
   return {
     port: e.PORT,
     databaseUrl: e.DATABASE_URL,
     jwtSecret: e.JWT_SECRET,
     googleClientId: e.GOOGLE_WEB_CLIENT_ID,
-    media: { bucket: e.R2_BUCKET, endpoint: e.R2_ENDPOINT, accessKeyId: e.R2_ACCESS_KEY_ID, secretAccessKey: e.R2_SECRET_ACCESS_KEY, region: e.R2_REGION },
+    media: { cloudName: cloud.hostname, apiKey: decodeURIComponent(cloud.username), apiSecret: decodeURIComponent(cloud.password) },
   };
 }

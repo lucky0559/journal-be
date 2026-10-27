@@ -18,7 +18,7 @@ test('the mobile client talks to the real backend', async () => {
     token = ex.token;
     const uploads: string[] = [];
     const fetchImpl = (async (url: string) => { uploads.push(String(url)); return { ok: true, status: 200 }; }) as unknown as typeof fetch;
-    return { api, user: ex.user!, social: createSocialApi(api), sharing: createApiSharingGateway({ api, fetchImpl, readFile: async () => new Blob(['x']) }), uploads };
+    return { api, user: ex.user!, social: createSocialApi(api), sharing: createApiSharingGateway({ api, fetchImpl }), uploads };
   };
 
   const maya = await sessionFor('maya');

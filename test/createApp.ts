@@ -15,7 +15,7 @@ export const TEST_CONFIG: AppConfig = {
   databaseUrl: 'unused',
   jwtSecret: 'test-secret-test-secret-test-secret',
   googleClientId: 'web-client-id',
-  media: { bucket: 'test-bucket', endpoint: 'http://r2.test', accessKeyId: 'k', secretAccessKey: 's', region: 'auto' },
+  media: { cloudName: 'test-cloud', apiKey: 'k', apiSecret: 's' },
 };
 
 /** Tokens like "tok:maya" verify as Google user "maya"; anything else is rejected. */

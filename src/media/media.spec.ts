@@ -7,12 +7,12 @@ describe('media upload urls', () => {
   beforeEach(async () => { t = await createApp(); });
   afterEach(async () => { await t.close(); });
 
-  it('returns a presigned PUT url under the user’s own prefix and records the key', async () => {
+  it('returns a signed upload slot under the user’s own prefix and records the key', async () => {
     const maya = await t.as('maya');
     const res = await t.http().post('/media/upload-url').set(t.auth(maya)).send({ kind: 'photo', contentType: 'image/jpeg' }).expect(201);
     expect(res.body.key).toMatch(new RegExp(`^${maya.id}/[0-9a-f-]{36}\\.jpg$`));
-    expect(res.body).toMatchObject({ method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, expiresInSeconds: 300 });
-    expect(res.body.uploadUrl).toContain(res.body.key);
+    expect(res.body).toMatchObject({ method: 'POST', fileField: 'file', expiresInSeconds: 3600 });
+    expect(res.body.fields.public_id).toBe(res.body.key);
     const rows = await t.db.select().from(media).where(eq(media.key, res.body.key));
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ ownerId: maya.id, kind: 'photo', contentType: 'image/jpeg' });

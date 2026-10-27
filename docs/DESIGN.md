@@ -1,12 +1,12 @@
 # Journal backend: design and plan
 
-NestJS 12 + Drizzle ORM + Neon Postgres. Consumed by the Journal React Native app (`../journ-al/mobile`), which today uses `SharingGateway` and `AuthGateway` stubs and sample feed data.
+NestJS 11 + Drizzle ORM + Neon Postgres. Consumed by the Journal React Native app (`../journ-al/mobile`), which today uses `SharingGateway` and `AuthGateway` stubs and sample feed data.
 
 ## Principles
 - **Private pages never reach the server.** Only pages set to Friends or Public are uploaded. Mood and feelings are never uploaded (the app promises they stay private). Flipping a page to Only me calls `DELETE /posts/:id`, which removes it and its media.
 - Visibility is enforced on the server for every read (feed, profile, single post, reactions, media URLs).
 - The client generates post ids (UUID) so publish is idempotent (`PUT /posts/:id`).
-- Media bytes go straight to an S3-compatible bucket (Cloudflare R2 free tier) through short-lived presigned URLs; the API only stores keys and hands out signed read URLs to people allowed to see the post.
+- Media bytes go straight to Cloudinary (free plan) as `authenticated` assets through a signed multipart upload the API issues; the API only stores keys and hands out signed delivery URLs to people allowed to see the post. Deleting a page deletes its files and purges the CDN.
 
 ## Data model (Postgres)
 - `users(id uuid, google_sub unique, email, name, given_name, photo, bio, created_at)`
@@ -31,7 +31,7 @@ NestJS 12 + Drizzle ORM + Neon Postgres. Consumed by the Journal React Native ap
 | `DELETE /friends/requests/:userId` | Cancel your outgoing request |
 | `POST /friends/requests/:userId/accept` / `decline` | Answer an incoming request |
 | `DELETE /friends/:userId` | Unfriend |
-| `POST /media/upload-url {kind, contentType}` | Presigned PUT URL + key |
+| `POST /media/upload-url {kind, contentType}` | Signed multipart upload slot `{key, uploadUrl, method:'POST', fields, fileField}` |
 | `GET /health` | Liveness |
 
 ## Visibility rules

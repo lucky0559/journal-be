@@ -1,19 +1,18 @@
 # journ-al-be
 
-Backend for the Journal app: NestJS 11 + Drizzle ORM + Neon Postgres + Cloudflare R2. See [docs/DESIGN.md](docs/DESIGN.md) for the API and rules.
+Backend for the Journal app: NestJS 11 + Drizzle ORM + Neon Postgres + Cloudinary. See [docs/DESIGN.md](docs/DESIGN.md) for the API and rules.
 
 Private pages never reach this server; only pages set to Friends or Public are published. Mood and feelings are never uploaded.
 
 ## Run it locally
 
 1. **Neon database (free):** sign up at neon.tech → create a project → *Connect* → copy the **pooled** connection string (host contains `-pooler`, ends with `?sslmode=require`).
-2. **R2 bucket (free tier):** Cloudflare dashboard → R2 → create bucket (private) → *Manage R2 API tokens* → create a token with **Object Read & Write** on that bucket. Note the bucket name, access key id, secret and the S3 endpoint `https://<account id>.r2.cloudflarestorage.com`.
-3. **Config:** `cp .env.example .env` and fill it in. `GOOGLE_WEB_CLIENT_ID` must equal the Web client ID the app uses. Generate `JWT_SECRET` with `openssl rand -base64 48`.
+2. **Cloudinary (free plan):** sign up at cloudinary.com → *Settings* → *API Keys* → copy the **API environment variable** (`cloudinary://API_KEY:API_SECRET@CLOUD_NAME`). Nothing else to configure: files are stored as `authenticated` assets and served through signed URLs.
+3. **Config:** `cp .env.example .env` and fill it in (`DATABASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `CLOUDINARY_URL`). `GOOGLE_WEB_CLIENT_ID` must equal the Web client ID the app uses. Generate `JWT_SECRET` with `openssl rand -base64 48`. The `dev` and `db:migrate` scripts read `.env` themselves.
 4. **Install, migrate, run:**
    ```bash
    npm install
-   set -a; source .env; set +a      # load the env vars into your shell
-   npm run db:migrate               # creates the tables in Neon
+   npm run db:migrate               # creates the tables in Neon and lists them
    npm run dev                      # http://localhost:3000/health
    ```
 
@@ -38,10 +37,12 @@ Any Node host works. For Render/Fly/Railway: build `npm ci && npm run build`, st
 
 ## Using it from the app
 
-Set the app's API base URL, send the Google ID token to `POST /auth/google`, then send `Authorization: Bearer <token>` on every call. Photos and voice notes: `POST /media/upload-url`, `PUT` the bytes to the returned `uploadUrl` with the returned `Content-Type` header, then reference the `key` in `PUT /posts/:id`.
+Set the app's API base URL, send the Google ID token to `POST /auth/google`, then send `Authorization: Bearer <token>` on every call. Photos and voice notes: `POST /media/upload-url`, then `POST` a multipart form to the returned `uploadUrl` with every entry of `fields` plus the file under `fileField`, then reference the `key` in `PUT /posts/:id`.
 
 ## Known limits
 
-- Upload size isn't capped by the presigned URL; add a bucket lifecycle rule or an R2 size policy before opening this up.
-- Uploads that never get attached to a page stay in the bucket (a periodic cleanup is future work).
+- Upload size isn't capped by our signature. The Cloudinary free plan limits files itself (about 10 MB per image, 100 MB per video/audio); to restrict formats or sizes further, use a signed upload preset in the Cloudinary dashboard.
+- A signed upload can name any resource type, so a signed-in user could store a non-media file under your Cloudinary account. Fine for friends-only use; tighten before opening it up.
+- Signed delivery URLs don't expire (expiring URLs need a paid Cloudinary plan). Anyone who was given a URL can open that file until the page is unpublished, which deletes it and purges the CDN.
+- Uploads that never get attached to a page stay in Cloudinary (a periodic cleanup is future work).
 - No rate limiting or moderation yet.

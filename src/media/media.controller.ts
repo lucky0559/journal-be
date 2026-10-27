@@ -25,7 +25,7 @@ export class MediaController {
     const { kind, contentType } = parse(Body_, raw);
     const key = `${me.id}/${randomUUID()}.${EXT[kind][contentType]}`;
     await this.db.insert(media).values({ key, ownerId: me.id, kind, contentType });
-    const { url, expiresInSeconds } = await this.storage.presignUpload(key, contentType);
-    return { key, uploadUrl: url, method: 'PUT', headers: { 'Content-Type': contentType }, expiresInSeconds };
+    const { url, method, fields, expiresInSeconds } = await this.storage.createUpload(key);
+    return { key, uploadUrl: url, method, fields, fileField: 'file', expiresInSeconds };
   }
 }

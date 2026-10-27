@@ -6,11 +6,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/main.js",
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch --env-file=.env src/main.ts",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate": "tsx --env-file=.env src/db/migrate.ts",
     "db:migrate:prod": "node dist/src/db/migrate.js",
     "test:contract": "NODE_OPTIONS=--experimental-vm-modules jest -c contract/jest.config.js"
   },
@@ -19,12 +19,11 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1156.0",
-    "@aws-sdk/s3-request-presigner": "^3.1156.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "cloudinary": "^2.11.0",
     "drizzle-orm": "^0.45.4",
     "google-auth-library": "^11.3.1",
     "pg": "^8.23.1",
