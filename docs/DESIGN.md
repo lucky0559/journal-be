@@ -7,7 +7,7 @@ NestJS 11 + Drizzle ORM + Neon Postgres. Consumed by the Journal React Native ap
 - **Only me pages and the mood and feelings are the author's alone.** Private pages are readable by their author only (not even friends), never appear in a feed or on a profile, and are not counted in a profile's "hidden" total. Mood and feelings are returned only to the author, even on a public page.
 - Visibility is enforced on the server for every read (feed, profile, single post, reactions, media URLs).
 - The client generates post ids (UUID) so publish is idempotent (`PUT /posts/:id`).
-- Media bytes go straight to Cloudinary (free plan) as `authenticated` assets through a signed multipart upload the API issues; the API only stores keys and hands out signed delivery URLs to people allowed to see the post. Deleting a page deletes its files and purges the CDN.
+- Media bytes go straight to Cloudinary (free plan), all in one folder named `journ.al` (`journ.al/<uuid>`; who owns a file is tracked in the `media` table, not in its name), as `authenticated` assets through a signed multipart upload the API issues; the API only stores keys and hands out signed delivery URLs to people allowed to see the post. Deleting a page deletes its files and purges the CDN.
 
 ## Data model (Postgres)
 - `users(id uuid, google_sub unique, email, name, given_name, photo, bio, created_at)`

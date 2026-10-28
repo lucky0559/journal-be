@@ -11,11 +11,11 @@ const baseEnv = {
 };
 
 describe('describeKey', () => {
-  it('drops the extension and files audio under video', () => {
-    expect(describeKey('u1/abc.jpg')).toEqual({ publicId: 'u1/abc', resourceType: 'image' });
-    expect(describeKey('u1/abc.heic')).toEqual({ publicId: 'u1/abc', resourceType: 'image' });
-    expect(describeKey('u1/abc.m4a')).toEqual({ publicId: 'u1/abc', resourceType: 'video' });
-    expect(describeKey('u1/abc.MP3')).toEqual({ publicId: 'u1/abc', resourceType: 'video' });
+  it('puts every file in the journ.al folder, drops the user id and the extension, and files audio under video', () => {
+    expect(describeKey('u1/abc.jpg')).toEqual({ publicId: 'journ.al/abc', resourceType: 'image' });
+    expect(describeKey('u1/abc.heic')).toEqual({ publicId: 'journ.al/abc', resourceType: 'image' });
+    expect(describeKey('u1/abc.m4a')).toEqual({ publicId: 'journ.al/abc', resourceType: 'video' });
+    expect(describeKey('u2/abc.MP3')).toEqual({ publicId: 'journ.al/abc', resourceType: 'video' });
   });
 });
 
@@ -36,8 +36,8 @@ describe('CloudinaryMediaStorage', () => {
     const slot = await storage.createUpload('u1/abc.jpg');
     const { fields } = slot;
     expect(slot).toMatchObject({ url: 'https://api.cloudinary.com/v1_1/demo-cloud/image/upload', method: 'POST', expiresInSeconds: 3600 });
-    expect(fields).toMatchObject({ public_id: 'u1/abc', type: 'authenticated', api_key: '123456' });
-    const expected = createHash('sha1').update(`public_id=u1/abc&timestamp=${fields.timestamp}&type=authenticateds3cr3t`).digest('hex');
+    expect(fields).toMatchObject({ public_id: 'journ.al/abc', type: 'authenticated', api_key: '123456' });
+    const expected = createHash('sha1').update(`public_id=journ.al/abc&timestamp=${fields.timestamp}&type=authenticateds3cr3t`).digest('hex');
     expect(fields.signature).toBe(expected);
     expect(Math.abs(Number(fields.timestamp) - Date.now() / 1000)).toBeLessThan(5);
   });
@@ -54,16 +54,16 @@ describe('CloudinaryMediaStorage', () => {
 
   it('hands out signed delivery urls for authenticated assets', async () => {
     const photo = await storage.presignRead('u1/abc.jpg');
-    expect(photo).toMatch(/^https:\/\/res\.cloudinary\.com\/demo-cloud\/image\/authenticated\/s--[\w-]{8}--\/v1\/u1\/abc$/);
+    expect(photo).toMatch(/^https:\/\/res\.cloudinary\.com\/demo-cloud\/image\/authenticated\/s--[\w-]{8}--\/v1\/journ\.al\/abc$/);
     const voice = await storage.presignRead('u1/abc.m4a');
-    expect(voice).toMatch(/^https:\/\/res\.cloudinary\.com\/demo-cloud\/video\/authenticated\/s--[\w-]{8}--\/v1\/u1\/abc$/);
+    expect(voice).toMatch(/^https:\/\/res\.cloudinary\.com\/demo-cloud\/video\/authenticated\/s--[\w-]{8}--\/v1\/journ\.al\/abc$/);
   });
 
   it('deletes by resource type, purging the CDN', async () => {
     const spy = jest.spyOn(cloudinary.api, 'delete_resources').mockResolvedValue({} as never);
     await storage.delete(['u1/a.jpg', 'u1/b.m4a', 'u1/c.png']);
-    expect(spy).toHaveBeenCalledWith(['u1/a', 'u1/c'], { resource_type: 'image', type: 'authenticated', invalidate: true });
-    expect(spy).toHaveBeenCalledWith(['u1/b'], { resource_type: 'video', type: 'authenticated', invalidate: true });
+    expect(spy).toHaveBeenCalledWith(['journ.al/a', 'journ.al/c'], { resource_type: 'image', type: 'authenticated', invalidate: true });
+    expect(spy).toHaveBeenCalledWith(['journ.al/b'], { resource_type: 'video', type: 'authenticated', invalidate: true });
     spy.mockClear();
     await storage.delete([]);
     expect(spy).not.toHaveBeenCalled();

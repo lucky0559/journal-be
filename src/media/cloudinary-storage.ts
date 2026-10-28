@@ -9,11 +9,18 @@ const AUDIO = new Set(['m4a', 'mp3', 'aac']);
 
 type ResourceType = 'image' | 'video';
 
-/** Our keys look like `<userId>/<uuid>.<ext>`; Cloudinary names assets without the extension, and files audio under `video`. */
+/** Every file lives in this one Cloudinary folder. Who owns a file is tracked in our database, not in its name. */
+export const FOLDER = 'journ.al';
+
+/**
+ * Our keys look like `<userId>/<uuid>.<ext>`. Cloudinary names the asset `journ.al/<uuid>` (no extension, no user id)
+ * and files audio under `video`.
+ */
 export function describeKey(key: string): { publicId: string; resourceType: ResourceType } {
-  const dot = key.lastIndexOf('.');
-  const ext = dot < 0 ? '' : key.slice(dot + 1).toLowerCase();
-  return { publicId: dot < 0 ? key : key.slice(0, dot), resourceType: AUDIO.has(ext) ? 'video' : 'image' };
+  const file = key.slice(key.lastIndexOf('/') + 1);
+  const dot = file.lastIndexOf('.');
+  const ext = dot < 0 ? '' : file.slice(dot + 1).toLowerCase();
+  return { publicId: `${FOLDER}/${dot < 0 ? file : file.slice(0, dot)}`, resourceType: AUDIO.has(ext) ? 'video' : 'image' };
 }
 
 /**
