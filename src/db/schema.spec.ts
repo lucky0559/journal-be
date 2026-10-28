@@ -26,12 +26,16 @@ describe('schema', () => {
     await close();
   });
 
-  it('refuses private pages at the database level', async () => {
+  it('stores private pages with mood and feelings, and refuses unknown visibilities', async () => {
     const { db, close } = await createTestDb();
     const [u] = await db.insert(users).values({ googleSub: 'g1', email: 'a@b.c', name: 'A', givenName: 'A' }).returning();
-    await expect(
-      db.insert(posts).values({ id: '22222222-2222-4222-8222-222222222222', authorId: u.id, date: '2026-10-08', time: '9:00 pm', vis: 'private' as never, text: 'x' }),
-    ).rejects.toThrow();
+    const page = { authorId: u.id, date: '2026-10-08', time: '9:00 pm', text: 'x' };
+    const [row] = await db
+      .insert(posts)
+      .values({ id: '22222222-2222-4222-8222-222222222222', ...page, vis: 'private', mood: 30, feelings: ['tired'] })
+      .returning();
+    expect(row).toMatchObject({ vis: 'private', mood: 30, feelings: ['tired'] });
+    await expect(db.insert(posts).values({ id: '33333333-3333-4333-8333-333333333333', ...page, vis: 'secret' as never })).rejects.toThrow();
     await close();
   });
 });

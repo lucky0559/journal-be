@@ -2,7 +2,7 @@
 
 Backend for the Journal app: NestJS 11 + Drizzle ORM + Neon Postgres + Cloudinary. See [docs/DESIGN.md](docs/DESIGN.md) for the API and rules.
 
-Private pages never reach this server; only pages set to Friends or Public are published. Mood and feelings are never uploaded.
+The whole journal is saved to the user's account so it follows them to any phone, including Only me pages with their mood and feelings. Only me pages can be read by their author alone, and mood and feelings are never shown to anyone else.
 
 ## Run it locally
 

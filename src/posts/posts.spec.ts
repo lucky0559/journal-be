@@ -35,22 +35,36 @@ describe('publishing pages', () => {
     });
     expect(res.body.photos).toEqual([{ key: photo, url: expect.stringContaining(photo) }]);
     expect(res.body.voices).toEqual([{ key: voice, seconds: 38, url: expect.stringContaining(voice) }]);
-    expect(res.body.mood).toBeUndefined();
-    expect(res.body.feelings).toBeUndefined();
+    expect(res.body.updatedAt).toEqual(expect.any(String));
   });
 
-  it('never stores mood or feelings even if the client sends them', async () => {
-    const maya = await t.as('maya');
+  it('keeps mood and feelings for the author only: friends, feeds and profiles never see them', async () => {
+    const maya = await t.as('maya'); const jun = await t.as('jun');
+    await befriend(maya, jun);
     const id = randomUUID();
-    await publish(maya, id, { mood: 12, feelings: ['lonely'] }).expect(200);
-    const [row] = await t.db.select().from(posts).where(eq(posts.id, id));
-    expect(Object.keys(row)).not.toEqual(expect.arrayContaining(['mood']));
-    expect(JSON.stringify(row)).not.toContain('lonely');
+    const own = await publish(maya, id, { mood: 12, feelings: ['lonely'], vis: 'public' }).expect(200);
+    expect(own.body).toMatchObject({ mood: 12, feelings: ['lonely'] });
+    const seen = [
+      (await t.http().get(`/posts/${id}`).set(t.auth(jun)).expect(200)).body,
+      (await t.http().get('/feed?tab=friends').set(t.auth(jun)).expect(200)).body.posts[0],
+      (await t.http().get('/feed?tab=public').set(t.auth(jun)).expect(200)).body.posts[0],
+      (await t.http().get(`/users/${maya.id}/posts`).set(t.auth(jun)).expect(200)).body.posts[0],
+    ];
+    for (const post of seen) {
+      expect(post.id).toBe(id);
+      expect(post).not.toHaveProperty('mood');
+      expect(post).not.toHaveProperty('feelings');
+      expect(JSON.stringify(post)).not.toContain('lonely');
+    }
   });
 
-  it('refuses private pages, bad input and oversize content', async () => {
+  it('refuses bad input and oversize content', async () => {
     const maya = await t.as('maya');
-    await publish(maya, randomUUID(), { vis: 'private' }).expect(400);
+    await publish(maya, randomUUID(), { mood: 101 }).expect(400);
+    await publish(maya, randomUUID(), { mood: -1 }).expect(400);
+    await publish(maya, randomUUID(), { mood: 4.5 }).expect(400);
+    await publish(maya, randomUUID(), { feelings: Array(21).fill('calm') }).expect(400);
+    await publish(maya, randomUUID(), { vis: 'secret' }).expect(400);
     await publish(maya, randomUUID(), { date: '2026-13-45' }).expect(400);
     await publish(maya, randomUUID(), { date: 'yesterday' }).expect(400);
     await publish(maya, randomUUID(), { time: 'noon' }).expect(400);
@@ -104,6 +118,89 @@ describe('publishing pages', () => {
     expect(await t.db.select().from(media).where(eq(media.key, photo))).toHaveLength(0);
     await t.http().delete(`/posts/${id}`).set(t.auth(maya)).expect(204);
     await t.http().get(`/posts/${id}`).set(t.auth(maya)).expect(404);
+  });
+
+  describe('private pages (Only me)', () => {
+    it('are stored with mood and feelings and readable only by their author', async () => {
+      const maya = await t.as('maya'); const jun = await t.as('jun'); const kit = await t.as('kit');
+      await befriend(maya, jun);
+      const id = randomUUID();
+      const res = await publish(maya, id, { vis: 'private', mood: 20, feelings: ['tired'], text: 'Rough day' }).expect(200);
+      expect(res.body).toMatchObject({ id, vis: 'private', mood: 20, feelings: ['tired'], text: 'Rough day' });
+      await t.http().get(`/posts/${id}`).set(t.auth(maya)).expect(200);
+      await t.http().get(`/posts/${id}`).set(t.auth(jun)).expect(404); // not even a friend
+      await t.http().get(`/posts/${id}`).set(t.auth(kit)).expect(404);
+    });
+
+    it('never appear in anyone else’s feeds or profile views, or in the hidden count', async () => {
+      const maya = await t.as('maya'); const jun = await t.as('jun'); const kit = await t.as('kit');
+      await befriend(maya, jun);
+      const secret = randomUUID(); const shared = randomUUID();
+      await publish(maya, secret, { vis: 'private', text: 'secret' }).expect(200);
+      await publish(maya, shared, { vis: 'friends', text: 'shared' }).expect(200);
+      const ids = (r: { body: { posts: { id: string }[] } }) => r.body.posts.map((p) => p.id);
+      expect(ids(await t.http().get('/feed?tab=friends').set(t.auth(jun)).expect(200))).toEqual([shared]);
+      expect(ids(await t.http().get('/feed?tab=public').set(t.auth(jun)).expect(200))).toEqual([]);
+      expect(ids(await t.http().get(`/users/${maya.id}/posts`).set(t.auth(jun)).expect(200))).toEqual([shared]);
+      const stranger = await t.http().get(`/users/${maya.id}/posts`).set(t.auth(kit)).expect(200);
+      expect(ids(stranger)).toEqual([]);
+      expect(stranger.body.hidden).toBe(1); // the friends-only page, not the private one
+    });
+
+    it('cannot be reacted to by anyone else', async () => {
+      const maya = await t.as('maya'); const jun = await t.as('jun');
+      await befriend(maya, jun);
+      const id = randomUUID();
+      await publish(maya, id, { vis: 'private' }).expect(200);
+      await t.http().put(`/posts/${id}/reactions/hug`).set(t.auth(jun)).expect(404);
+    });
+
+    it('keep their photos and voice notes, and switching a shared page to Only me hides it again', async () => {
+      const maya = await t.as('maya'); const jun = await t.as('jun');
+      await befriend(maya, jun);
+      const photo = await upload(maya);
+      const id = randomUUID();
+      await publish(maya, id, { vis: 'friends', photos: [photo] }).expect(200);
+      await t.http().get(`/posts/${id}`).set(t.auth(jun)).expect(200);
+      const res = await publish(maya, id, { vis: 'private', photos: [photo] }).expect(200);
+      expect(res.body.photos).toEqual([{ key: photo, url: expect.stringContaining(photo) }]);
+      expect(t.storage.deleted).toEqual([]); // nothing is deleted when a page goes private
+      await t.http().get(`/posts/${id}`).set(t.auth(jun)).expect(404);
+    });
+  });
+
+  describe('restoring the journal (GET /me/posts)', () => {
+    it('returns all of my pages, whatever their visibility, with mood and feelings, newest first', async () => {
+      const maya = await t.as('maya'); const jun = await t.as('jun');
+      const a = randomUUID(); const b = randomUUID(); const c = randomUUID(); const others = randomUUID();
+      const photo = await upload(maya);
+      const wrote = Date.parse('2026-10-08T21:41:00Z');
+      await publish(maya, a, { vis: 'private', mood: 10, feelings: ['calm'], photos: [photo], createdAt: wrote }).expect(200);
+      await publish(maya, a, { vis: 'private', mood: 10, feelings: ['calm'], photos: [photo], createdAt: wrote + 99_999 }).expect(200); // only the first one counts
+      await new Promise((r) => setTimeout(r, 5));
+      await publish(maya, b, { vis: 'friends', mood: 50 }).expect(200);
+      await new Promise((r) => setTimeout(r, 5));
+      await publish(maya, c, { vis: 'public', mood: 90 }).expect(200);
+      await publish(jun, others, { vis: 'private' }).expect(200);
+      const res = await t.http().get('/me/posts').set(t.auth(maya)).expect(200);
+      expect(res.body.posts.map((p: { id: string }) => p.id)).toEqual([c, b, a]);
+      expect(res.body.posts[2]).toMatchObject({ vis: 'private', mood: 10, feelings: ['calm'] });
+      expect(res.body.posts[2].photos).toEqual([{ key: photo, url: expect.stringContaining(photo) }]);
+      expect(res.body.posts[0]).toMatchObject({ createdAt: expect.any(String), updatedAt: expect.any(String) });
+      expect(res.body.posts[2].createdAt).toBe('2026-10-08T21:41:00.000Z'); // the phone's writing time is kept
+    });
+
+    it('pages through the journal and needs a sign-in', async () => {
+      const maya = await t.as('maya');
+      for (let i = 0; i < 3; i++) { await publish(maya, randomUUID(), { vis: 'private' }).expect(200); await new Promise((r) => setTimeout(r, 5)); }
+      const first = await t.http().get('/me/posts?limit=2').set(t.auth(maya)).expect(200);
+      expect(first.body.posts).toHaveLength(2);
+      const second = await t.http().get(`/me/posts?limit=2&before=${encodeURIComponent(first.body.nextBefore)}`).set(t.auth(maya)).expect(200);
+      expect(second.body.posts).toHaveLength(1);
+      expect(second.body.nextBefore).toBeNull();
+      await t.http().get('/me/posts').expect(401);
+      await t.http().get('/me/posts?limit=0').set(t.auth(maya)).expect(400);
+    });
   });
 
   describe('who can read it', () => {

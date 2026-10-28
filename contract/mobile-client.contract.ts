@@ -63,6 +63,29 @@ test('the mobile client talks to the real backend', async () => {
   const reshared = await maya.sharing.publish(sent);
   ok(!!reshared.photos[0].remoteKey && reshared.photos[0].remoteKey !== sent.photos[0].remoteKey, 'stale keys trigger a clean re-upload');
 
+  // ---- the whole journal follows the account to a second phone ----
+  const secretId = '33333333-3333-4333-8333-333333333333';
+  const secret = {
+    id: secretId, createdAt: Date.parse('2026-10-09T20:00:00Z'), date: '2026-10-09', time: '8:00 pm', mood: 18, feelings: ['tired'],
+    text: 'A heavy day, just for me.', prompt: '', vis: 'private' as const,
+    photos: [{ id: 'p2', uri: 'file:///doc/media/c.jpg' }], voices: [], stickers: [], publishedAt: null,
+  };
+  const savedSecret = await maya.sharing.publish(secret);
+  ok(!!savedSecret.photos[0].remoteKey && typeof savedSecret.publishedAt === 'number', 'an Only me page is saved to the account with its photo, and the server time comes back');
+  ok((await jun.social.feed('friends')).posts.every((p) => p.id !== secretId), 'a friend never sees an Only me page in the feed');
+  ok((await jun.social.userPosts(maya.user.id)).posts.every((p) => p.id !== secretId), 'a friend never sees it on the profile');
+  const stranger = await kit.social.userPosts(maya.user.id);
+  ok(stranger.posts.every((p) => p.id !== secretId) && stranger.hidden === 1, 'a stranger neither sees it nor counts it as hidden');
+
+  const phone2 = await sessionFor('maya'); // same Google account, signed in on another phone
+  const journal = await phone2.sharing.restore();
+  const back = journal.find((e) => e.id === secretId);
+  ok(!!back && back.vis === 'private' && back.mood === 18 && back.feelings[0] === 'tired' && back.text === secret.text, 'the second phone restores the Only me page with its mood and feelings');
+  ok(back!.createdAt === secret.createdAt && typeof back!.publishedAt === 'number', 'the original writing time and the server time come back');
+  ok(journal.some((e) => e.id === id), 'it restores the shared page too');
+  const onPhone = await phone2.sharing.localize(back!);
+  ok(onPhone.photos[0].uri.startsWith('file:///device/media/') && onPhone.photos[0].remoteKey === savedSecret.photos[0].remoteKey, 'its photo is saved onto the second phone and stays linked to the uploaded copy');
+
   await maya.social.deleteAccount();
   let status = 0;
   try { await maya.api.request('GET', '/me'); } catch (e) { status = (e as { status: number }).status; }

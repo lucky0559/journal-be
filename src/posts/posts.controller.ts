@@ -12,7 +12,10 @@ const realDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((s) => {
 const Publish = z.object({
   date: realDate,
   time: z.string().regex(/^\d{1,2}:\d{2} (am|pm)$/),
-  vis: z.enum(['friends', 'public']),
+  vis: z.enum(['private', 'friends', 'public']),
+  mood: z.number().int().min(0).max(100).nullish(),
+  feelings: z.array(z.string().min(1).max(30)).max(20).default([]),
+  createdAt: z.number().int().positive().optional(),
   prompt: z.string().max(300).default(''),
   text: z.string().max(10_000).default(''),
   stickers: z.array(z.string().min(1).max(30)).max(20).default([]),
@@ -41,6 +44,11 @@ export class PostsController {
   @HttpCode(204)
   async unpublish(@CurrentUser() me: User, @Param('id') id: string) {
     await this.posts.unpublish(me.id, parse(uuid, id));
+  }
+
+  @Get('me/posts')
+  myPosts(@CurrentUser() me: User, @Query() q: unknown) {
+    return this.posts.myPosts(me.id, parse(ProfileQuery, q));
   }
 
   @Get('posts/:id')

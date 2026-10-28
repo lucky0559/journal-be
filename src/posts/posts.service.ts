@@ -9,8 +9,12 @@ import { canRead } from './visibility';
 
 export type PostRow = typeof posts.$inferSelect;
 export interface PublishInput {
-  date: string; time: string; vis: 'friends' | 'public'; prompt: string; text: string;
+  date: string; time: string; vis: 'private' | 'friends' | 'public'; prompt: string; text: string;
   stickers: string[]; photos: string[]; voices: { key: string; seconds: number }[];
+  /** Author-only: never returned to anyone else. */
+  mood?: number | null; feelings: string[];
+  /** When the page was first written on the phone (ms). Used only when the page is first stored. */
+  createdAt?: number;
 }
 
 const mediaKeys = (p: Pick<PostRow, 'photos' | 'voices'>) => [...p.photos, ...p.voices.map((v) => v.key)];
@@ -42,10 +46,12 @@ export class PostsService {
     if (existing && existing.authorId !== me) throw new NotFoundException();
 
     const now = new Date();
-    const values = { ...input, updatedAt: now };
+    const { createdAt: writtenAt, ...content } = input;
+    const values = { ...content, mood: input.mood ?? null, updatedAt: now };
+    const created = writtenAt ? new Date(Math.min(writtenAt, now.getTime())) : now;
     await this.db
       .insert(posts)
-      .values({ id, authorId: me, createdAt: now, ...values })
+      .values({ id, authorId: me, createdAt: created, ...values })
       .onConflictDoUpdate({ target: posts.id, set: values, setWhere: eq(posts.authorId, me) });
 
     if (existing) await this.dropUnusedMedia(me, id, mediaKeys(existing).filter((k) => !wanted.includes(k)));
@@ -91,9 +97,14 @@ export class PostsService {
     } else {
       const ids = await this.friends.friendIds(viewerId);
       if (!ids.length) return { posts: [], nextBefore: null };
-      scope = inArray(posts.authorId, ids);
+      scope = and(inArray(posts.authorId, ids), ne(posts.vis, 'private')); // a friend's Only me pages stay theirs
     }
     return this.page(viewerId, scope, o);
+  }
+
+  /** My whole journal, whatever each page's visibility: how another phone restores it. */
+  myPosts(me: string, o: { limit: number; before?: string }) {
+    return this.page(me, eq(posts.authorId, me), o);
   }
 
   async profilePosts(viewerId: string, userId: string, o: { limit: number; before?: string }) {
@@ -101,7 +112,10 @@ export class PostsService {
     if (!author) throw new NotFoundException();
     const state = await friendStateBetween(this.db, viewerId, userId);
     const seesAll = state === 'self' || state === 'friends';
-    const scope = seesAll ? eq(posts.authorId, userId) : and(eq(posts.authorId, userId), eq(posts.vis, 'public'));
+    const scope =
+      state === 'self' ? eq(posts.authorId, userId)
+      : seesAll ? and(eq(posts.authorId, userId), ne(posts.vis, 'private'))
+      : and(eq(posts.authorId, userId), eq(posts.vis, 'public'));
     let hidden = 0;
     if (!seesAll) {
       const [{ n }] = await this.db
@@ -159,10 +173,12 @@ export class PostsService {
           id: r.id,
           author: { id: a.id, name: a.name, givenName: a.givenName, photo: a.photo, bio: a.bio },
           date: r.date, time: r.time, vis: r.vis, prompt: r.prompt, text: r.text, stickers: r.stickers,
+          // Mood and feelings are the author's alone, even on a public page.
+          ...(r.authorId === viewerId ? { mood: r.mood, feelings: r.feelings } : {}),
           photos: await Promise.all(r.photos.map(async (key) => ({ key, url: await this.storage.presignRead(key) }))),
           voices: await Promise.all(r.voices.map(async (v) => ({ ...v, url: await this.storage.presignRead(v.key) }))),
           hug: n('hug'), same: n('same'), mine: { hug: has('hug'), same: has('same') },
-          createdAt: r.createdAt.toISOString(),
+          createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
         };
       }),
     );

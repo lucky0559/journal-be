@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { check, index, integer, jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
-export const postVis = pgEnum('post_vis', ['friends', 'public']);
+export const postVis = pgEnum('post_vis', ['friends', 'public', 'private']);
 export const friendStatus = pgEnum('friend_status', ['pending', 'accepted']);
 export const reactionKind = pgEnum('reaction_kind', ['hug', 'same']);
 export const mediaKind = pgEnum('media_kind', ['photo', 'voice']);
@@ -23,6 +23,9 @@ export const posts = pgTable('posts', {
   date: text('date').notNull(),
   time: text('time').notNull(),
   vis: postVis('vis').notNull(),
+  // Only the author ever sees these; every other view leaves them out.
+  mood: integer('mood'),
+  feelings: jsonb('feelings').$type<string[]>().notNull().default([]),
   prompt: text('prompt').notNull().default(''),
   text: text('text').notNull().default(''),
   stickers: jsonb('stickers').$type<string[]>().notNull().default([]),
