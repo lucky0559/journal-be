@@ -17,8 +17,8 @@ test('the mobile client talks to the real backend', async () => {
     const ex = await createApiAuthGateway(api).exchange(`tok:${name}`, { id: 'g', email: '', name: '', givenName: '', photo: null });
     token = ex.token;
     const uploads: string[] = [];
-    const fetchImpl = (async (url: string) => { uploads.push(String(url)); return { ok: true, status: 200 }; }) as unknown as typeof fetch;
-    return { api, user: ex.user!, social: createSocialApi(api), sharing: createApiSharingGateway({ api, fetchImpl }), uploads };
+    const send = async (_uri: string, url: string) => { uploads.push(String(url)); return 200; };
+    return { api, user: ex.user!, social: createSocialApi(api), sharing: createApiSharingGateway({ api, send }), uploads };
   };
 
   const maya = await sessionFor('maya');
