@@ -31,7 +31,11 @@ npm run typecheck
 
 Edit `src/db/schema.ts`, then `npm run db:generate` (creates a SQL file in `drizzle/`), commit it, and run `npm run db:migrate` against Neon.
 
-## Deploy later (free options)
+## Deployed on Vercel
+
+Live at https://journ-al-be.vercel.app (Vercel Hobby, zero-config NestJS: `src/main.ts` is the entrypoint). Set `DATABASE_URL`, `JWT_SECRET`, `GOOGLE_WEB_CLIENT_ID` and `CLOUDINARY_URL` under Project > Settings > Environment Variables, then redeploy with `npx vercel deploy --prod`. Database migrations are not run by Vercel: run `npm run db:migrate` from your computer against the Neon database after a schema change. Uploads go straight to Cloudinary, so Vercel's 4.5 MB request limit does not apply to photos or voice notes.
+
+## Other hosts (free options)
 
 Any Node host works. For Render/Fly/Railway: build `npm ci && npm run build`, start `node dist/src/main.js`, run `npm run db:migrate:prod` once per release, and set the env vars from `.env.example`. A `Dockerfile` is included. Free tiers sleep when idle, so the first request after a pause is slow.
 
